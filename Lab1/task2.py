@@ -56,3 +56,5 @@ for t in model.T:
             print(f"Seleccionada por trabajador {w}")
     if all(model.x[t,w].value == 0 for w in model.W):
         print("No seleccionada")
+        
+model.display()

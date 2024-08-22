@@ -54,3 +54,5 @@ for t in model.T:
         print(f"Task {t} yes")
     else:
         print(f"Task {t} no")
+        
+model.display()
