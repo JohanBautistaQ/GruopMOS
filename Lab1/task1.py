@@ -44,7 +44,7 @@ model.x = Var(model.T, within=Binary)
 model.objective = Objective(expr=sum(model.x[t]*tasks[t][1] for t in model.T), sense=maximize)
 
 #Restriccion
-model.constraint = Constraint(expr=sum(model.x[t]*tasks[t][0] for t in model.T) <= 94)
+model.constraint = Constraint(expr=sum(model.x[t]*tasks[t][0] for t in model.T) <= 52)
 
 solver = SolverFactory('glpk')
 result = solver.solve(model)
