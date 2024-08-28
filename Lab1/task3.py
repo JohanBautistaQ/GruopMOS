@@ -69,3 +69,36 @@ solver = SolverFactory('glpk')
 result = solver.solve(model)
 
 model.display()
+
+import matplotlib.pyplot as plt
+
+# Lista de aviones
+P = list(model.A) 
+
+# Valores de los recursos
+resources = list(recursos.keys())  # IDs de los recursos
+values = [recursos[r][0] for r in resources]  # Valor de cada recurso
+
+# Estado de selección para cada avión
+selected = [[model.x[p, r].value for r in resources] for p in P]
+
+colors = ['red', 'blue', 'green']  
+plt.figure(figsize=(10, 6))
+
+for i, p in enumerate(P):
+    plt.bar(
+        [f"Recurso {r}" for r in resources], 
+        [v * sel for v, sel in zip(values, selected[i])],  # Multiplica el valor por el estado de selección
+        color=colors[i],
+        label=f'Avión {p}',
+        bottom=[sum(selected[k][r] * values[r] for k in range(i)) for r in range(len(resources))]
+    )
+
+plt.xlabel("Recursos")
+plt.ylabel("Valor")
+plt.title("Asignación de recursos a aviones")
+
+plt.xticks(rotation=45, ha="right")
+plt.legend()
+plt.tight_layout()
+plt.show()
