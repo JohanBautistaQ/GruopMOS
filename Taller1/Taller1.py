@@ -14,17 +14,17 @@ nutrient_values = {
     'azucares': {'C': 0, 'A': 0.01, 'L': 13, 'P': 25},
     'carbohidratos': {'C': 0, 'A': 44.1, 'L': 11, 'P': 55}
 }
-Max_Min = {'caloria': 1500, 'proteina': 63, 'grasa': 50, 'azucar': 25, 'carbohidrato': 200}
+Max_Min = {'calorias': 1500, 'proteinas': 63, 'grasas': 50, 'azucares': 25, 'carbohidratos': 200}
 
 # Multiplicadores: 1 para >=, -1 para <= 
-multipliers = {'caloria': 1, 'proteina': 1, 'grasa': -1, 'azucar': -1, 'carbohidrato': -1}
+multipliers = {'calorias': 1, 'proteinas': 1, 'grasas': -1, 'azucares': -1, 'carbohidratos': -1}
 
 
 model = ConcreteModel()
 
 # Conjuntos
 model.Foods = Set(initialize=['C', 'A', 'L', 'P'])  
-model.Nutrients = Set(initialize=['caloria', 'proteina', 'grasa', 'azucar', 'carbohidrato'])
+model.Nutrients = Set(initialize=['calorias', 'proteinas', 'grasas', 'azucares', 'carbohidratos'])
 
 # Variable de decisión 
 model.x = Var(model.Foods, domain=NonNegativeReals)
