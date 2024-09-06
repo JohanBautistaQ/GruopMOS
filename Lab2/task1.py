@@ -54,7 +54,6 @@ def recibido_equals_to_demanda(model, c):
 #model.enviado_equals_to_oferta = Constraint(model.productores, rule=enviado_equals_to_oferta)
 model.recibido_equals_to_demanda = Constraint(model.consumidores, rule=recibido_equals_to_demanda)
 
-
 solver = SolverFactory('glpk')
 results = solver.solve(model)
 
