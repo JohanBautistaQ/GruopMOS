@@ -97,7 +97,7 @@ def locality_coverage_rule(model, l):
 model.Locality_Coverage_Constraint = Constraint(model.L, rule=locality_coverage_rule)
 
 def xy_link_rule(model, l):
-    return model.y[l] == sum(model.x[l, s] for s in model.S)
+    return model.y[l] >= sum(model.x[l, s] for s in model.S)
 model.XY_Link_Constraint = Constraint(model.L, rule=xy_link_rule)
 
 solver = SolverFactory('glpk')
