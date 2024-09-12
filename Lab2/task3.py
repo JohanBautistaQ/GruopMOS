@@ -1,5 +1,5 @@
 """
-Task1, Lab2, Modelado Simulacion y optimización 
+Task3, Lab2, Modelado Simulacion y optimización 
 Uniandes
 Developed by:
 @Johan Alexis Bautista Quinayas & @Danny Camilo Muñoz Sanabria
@@ -16,8 +16,6 @@ installation_costs = pd.read_csv('data/installation_costs.csv')
 communication_costs = pd.read_csv('data/communication_costs.csv')
 energy_consumption = pd.read_csv('data/energy_consumption.csv')
 sensor_coverage = pd.read_csv('data/sensor_coverage.csv')
-
-#transform to dicc
 
 installation_costs = dict(zip(installation_costs['Location'], installation_costs['InstallationCost']))
 energy_consumption = dict(zip(energy_consumption['SensorType'], energy_consumption['EnergyConsumption']))
@@ -61,20 +59,19 @@ print(sensor_coverage)
 print('Matriz de adjacency:')
 print(Adj)
 """
+
 # Conjuntos
-model.L = Set(initialize=sorted(locations))  # Usamos 'sorted' para evitar problemas de orden no determinístico
+model.L = Set(initialize=sorted(locations))  
 model.S = Set(initialize=sorted(sensors))
 
-# Parámetros
+# Parametros
 model.installation_costs = Param(model.L, initialize=installation_costs)
 model.energy_consumption = Param(model.S, initialize=energy_consumption)
 
-# Dado que communication_costs es un diccionario de diccionarios, necesitamos una forma de acceder a los valores correctamente
 def get_comm_cost(model, l, s):
     return communication_costs[l][s]
 model.communication_costs = Param(model.L, model.S, initialize=get_comm_cost)
 
-# De manera similar para sensor_coverage
 def get_sensor_cov(model, l, s):
     return sensor_coverage[l][s]
 model.sensor_coverage = Param(model.L, model.S, initialize=get_sensor_cov)
