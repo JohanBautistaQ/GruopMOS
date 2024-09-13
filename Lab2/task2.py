@@ -1,109 +1,101 @@
+"""
+Task2, Lab2, Modelado Simulación y optimización 
+Uniandes
+Developed by:
+@Johan Alexis Bautista Quinayas & @Danny Camilo Muñoz Sanabria
+"""
+
 from pyomo.environ import *
 import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
 
-# Cargar la matriz de distancias desde el archivo .csv
-def cargar_matriz(file_path):
-    matriz = pd.read_csv(file_path, header=0)
-    return matriz.values
-
-file_path = 'data/proof_case.csv'
-matriz_distancias = cargar_matriz(file_path)
+# Cargar la matriz de distancias directamente sin función separada
+matriz_distancias = pd.read_csv('data/proof_case.csv', header=0).values
 print(matriz_distancias)
 
-# Modelo
-Model = ConcreteModel()
+# Crear el modelo
+modelo = ConcreteModel()
 
-# Número de localidades y equipos
+# Parámetros básicos
 num_localidades = len(matriz_distancias)
 num_equipos = 3
-lo = 0  # Localidad de origen
+localidad_origen = 0  # Localidad de origen
 
-# Conjuntos
-Model.equipos = RangeSet(1, num_equipos)
-Model.localidades = RangeSet(0, num_localidades - 1)
+# Definir conjuntos en Pyomo
+modelo.equipos = RangeSet(1, num_equipos)
+modelo.localidades = RangeSet(0, num_localidades - 1)
 
-# Parámetro de distancias entre localidades
-Model.distancias = Param(Model.localidades, Model.localidades, initialize=lambda Model, i, j: matriz_distancias[i][j])
+# Parametrizar las distancias entre localidades
+modelo.distancias = Param(modelo.localidades, modelo.localidades, initialize=lambda modelo, i, j: matriz_distancias[i][j])
 
-# Variables de decisión: x[e, i, j] = 1 si el equipo e va de i a j
-Model.x = Var(Model.equipos, Model.localidades, Model.localidades, domain=Binary, initialize=0)
+# Variables de decisión: x[e, i, j] = 1 si el equipo e viaja de i a j
+modelo.x = Var(modelo.equipos, modelo.localidades, modelo.localidades, domain=Binary)
 
-# Función Objetivo: Minimizar la distancia total recorrida
-def funcion_objetivo(Model):
-    return sum(Model.distancias[i, j] * Model.x[e, i, j] for e in Model.equipos for i in Model.localidades for j in Model.localidades)
-Model.obj = Objective(rule=funcion_objetivo, sense=minimize)
+# Función objetivo: minimizar la distancia total recorrida
+modelo.objetivo = Objective(
+    expr=sum(modelo.distancias[i, j] * modelo.x[e, i, j] for e in modelo.equipos for i in modelo.localidades for j in modelo.localidades),
+    sense=minimize
+)
 
-# Restriccion 1: cada equipo debe salir de la localidad de origen
-def restriccion_salida_origen(Model, e):
-    return sum(Model.x[e, lo, j] for j in Model.localidades if j != lo) == 1
-Model.salida_origen = Constraint(Model.equipos, rule=restriccion_salida_origen)
+# Restricción: cada equipo debe salir de la localidad de origen
+modelo.salida_origen = Constraint(modelo.equipos, rule=lambda modelo, e: sum(modelo.x[e, localidad_origen, j] for j in modelo.localidades if j != localidad_origen) == 1)
 
-# Restriccion 2: cada equipo debe regresar a la localidad de origen
-def restriccion_regreso_origen(Model, e):
-    return sum(Model.x[e, i, lo] for i in Model.localidades if i != lo) == 1
-Model.regreso_origen = Constraint(Model.equipos, rule=restriccion_regreso_origen)
+# Restricción: cada equipo debe regresar a la localidad de origen
+modelo.regreso_origen = Constraint(modelo.equipos, rule=lambda modelo, e: sum(modelo.x[e, i, localidad_origen] for i in modelo.localidades if i != localidad_origen) == 1)
 
-# Restricción 3: cada localidad debe ser visitada por un solo equipo
-def restriccion_visitar_localidad_una_vez(Model, i):
-    if i != lo:
-        return sum(Model.x[e, i, j] for e in Model.equipos for j in Model.localidades if j != i) == 1
-    else:
-        return Constraint.Skip
-Model.visitar_localidad_una_vez = Constraint(Model.localidades, rule=restriccion_visitar_localidad_una_vez)
+# Restricción: cada localidad debe ser visitada exactamente una vez por algún equipo
+def regla_visita_unica(modelo, i):
+    if i != localidad_origen:
+        return sum(modelo.x[e, i, j] for e in modelo.equipos for j in modelo.localidades if j != i) == 1
+    return Constraint.Skip
+modelo.visita_unica = Constraint(modelo.localidades, rule=regla_visita_unica)
 
-# Restricción 4: todo lo que entra a una localidad debe salir
-def restriccion_continuidad(Model, e, i):
-    if i != lo:
-        return sum(Model.x[e, i, j] for j in Model.localidades if j != i) - sum(Model.x[e, j, i] for j in Model.localidades if j != i)==0
-    else:
-        return Constraint.Skip
-Model.continuidad = Constraint(Model.equipos, Model.localidades, rule=restriccion_continuidad)
+# Restricción de continuidad (lo que entra debe salir de una localidad)
+def regla_continua(modelo, e, i):
+    if i != localidad_origen:
+        return sum(modelo.x[e, i, j] for j in modelo.localidades if j != i) == sum(modelo.x[e, j, i] for j in modelo.localidades if j != i)
+    return Constraint.Skip
+modelo.continua = Constraint(modelo.equipos, modelo.localidades, rule=regla_continua)
 
-# Restricción 5: subtour elimination MTZ
-Model.u = Var(Model.equipos, Model.localidades, domain=NonNegativeIntegers, initialize=0)
-def restriccion_subtour_elimination(Model, e, i, j):
-    if i != lo and j != lo:
-        return Model.u[e, i] - Model.u[e, j] + num_localidades * Model.x[e, i, j] <= num_localidades - 1
-    else:
-        return Constraint.Skip
-Model.subtour_elimination = Constraint(Model.equipos, Model.localidades, Model.localidades, rule=restriccion_subtour_elimination)
+# Restricción MTZ para evitar subtours (eliminación de subtours)
+modelo.u = Var(modelo.equipos, modelo.localidades, domain=NonNegativeIntegers)
+modelo.subtours = Constraint(
+    modelo.equipos, modelo.localidades, modelo.localidades,
+    rule=lambda modelo, e, i, j: (modelo.u[e, i] - modelo.u[e, j] + num_localidades * modelo.x[e, i, j] <= num_localidades - 1)
+    if i != localidad_origen and j != localidad_origen else Constraint.Skip
+)
 
-
-# Resolver el modelo
+# Resolver el modelo utilizando GLPK
 solver = SolverFactory('glpk')
-results = solver.solve(Model)
+solver.solve(modelo)
+modelo.display()
 
-Model.display()
-
-# Imprimir los resultados
-def imprimir_resultados(Model):
-    total_modelo=0
-    for e in Model.equipos:
+# Imprimir resultados en la terminal
+def imprimir_resultados(modelo):
+    total_modelo = 0
+    for e in modelo.equipos:
         print(f"\nEquipo {e}:")
-        total_equipo = 0
-        for i in Model.localidades:
-            for j in Model.localidades:
-                if Model.x[e, i, j].value == 1:  # Si el equipo viaja de i a j
-                    print(f"De {i} a {j}: dis {Model.distancias[i, j]}")
-                    total_equipo += Model.distancias[i, j]
-        total_modelo += total_equipo
-        print(f"Distancia total recorrida Equipo {e}: {total_equipo}")
-    print(f"\nDISTANCIA TOTAL RECORRIDA: {total_modelo}")
+        distancia_total_equipo = 0
+        for i in modelo.localidades:
+            for j in modelo.localidades:
+                if modelo.x[e, i, j].value == 1:  # Si el equipo viaja de i a j
+                    print(f"Ruta: Localidad {i} a Localidad {j}, Distancia: {modelo.distancias[i, j]}")
+                    distancia_total_equipo += modelo.distancias[i, j]
+        total_modelo += distancia_total_equipo
+        print(f"Distancia total recorrida por el equipo {e}: {distancia_total_equipo} unidades.")
+    print(f"\nDistancia total recorrida por todos los equipos: {total_modelo} unidades.")
 
-
-    
-# Visualización de rutas
-def visualizar_rutas(Model):
+# Visualización de rutas (sin cambios)
+def visualizar_rutas(modelo):
     G = nx.DiGraph()
-    localidades = [i for i in Model.localidades]
+    localidades = [i for i in modelo.localidades]
     G.add_nodes_from(localidades)
 
-    for e in Model.equipos:
-        for i in Model.localidades:
-            for j in Model.localidades:
-                if Model.x[e, i, j].value == 1:
+    for e in modelo.equipos:
+        for i in modelo.localidades:
+            for j in modelo.localidades:
+                if modelo.x[e, i, j].value == 1:
                     G.add_edge(i, j, label=f'Equipo {e}')
 
     pos = nx.shell_layout(G)
@@ -113,9 +105,7 @@ def visualizar_rutas(Model):
     nx.draw_networkx_edges(G, pos, arrowstyle='-|>', arrowsize=20, edge_color="black", width=2)
     plt.title("Rutas óptimas de los equipos de trabajo")
     plt.show()
-    
-# Imprimir resultados y visualizar rutas
-imprimir_resultados(Model)
-visualizar_rutas(Model)
 
-
+# Ejecutar la impresión y visualización
+imprimir_resultados(modelo)
+visualizar_rutas(modelo)
