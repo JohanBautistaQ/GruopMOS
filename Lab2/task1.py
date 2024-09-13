@@ -45,13 +45,13 @@ model.obj = Objective(expr=sum(model.x[p, c]*costos[p][c] for p in model.product
 
 # Restricciones
 def enviado_equals_to_oferta(model, p):
-    return sum(model.x[p, c] for c in model.consumidores) == Oferta[p]
+    return sum(model.x[p, c] for c in model.consumidores) <= Oferta[p]
     
 def recibido_equals_to_demanda(model, c):
     return sum(model.x[p, c] for p in model.productores) == demanda[c]
 
 #TODO: Verificar que esta restriccion sea necesaria o no, ya que la oferta > demanda 
-#model.enviado_equals_to_oferta = Constraint(model.productores, rule=enviado_equals_to_oferta)
+model.enviado_equals_to_oferta = Constraint(model.productores, rule=enviado_equals_to_oferta)
 model.recibido_equals_to_demanda = Constraint(model.consumidores, rule=recibido_equals_to_demanda)
 
 solver = SolverFactory('glpk')
