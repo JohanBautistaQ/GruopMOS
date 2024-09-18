@@ -10,29 +10,21 @@ import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
 
-# Cargar la matriz de distancias
 ruta_archivo = 'data/proof_case.csv'
 matriz_distancias = pd.read_csv(ruta_archivo, header=0).values
-
-# Modelo de Pyomo
 modelo_rutas = ConcreteModel()
-
-# Parámetros del modelo
 total_localidades = len(matriz_distancias)
 total_equipos = 3
-localidad_inicio = 0  # Localidad de origen
+localidad_inicio = 0 
 
-# Conjuntos
 modelo_rutas.equipos = RangeSet(1, total_equipos)
 modelo_rutas.localidades = RangeSet(0, total_localidades - 1)
 
-# Parámetro de distancias entre localidades
 modelo_rutas.distancias = Param(modelo_rutas.localidades, modelo_rutas.localidades, initialize=lambda modelo_rutas, i, j: matriz_distancias[i][j])
 
-# Variables de decisión: x[e, i, j] = 1 si el equipo e viaja de i a j
+# Variable de decisión: x[e, i, j] = 1 si el equipo e viaja de i a j
 modelo_rutas.decision = Var(modelo_rutas.equipos, modelo_rutas.localidades, modelo_rutas.localidades, domain=Binary)
 
-# Función objetivo: minimizar la distancia total recorrida
 modelo_rutas.objetivo = Objective(
     expr=sum(modelo_rutas.distancias[i, j] * modelo_rutas.decision[e, i, j] for e in modelo_rutas.equipos for i in modelo_rutas.localidades for j in modelo_rutas.localidades),
     sense=minimize
@@ -71,12 +63,10 @@ modelo_rutas.subtours = Constraint(
     rule=lambda modelo_rutas, e, i, j: Constraint.Skip if i == localidad_inicio or j == localidad_inicio else (modelo_rutas.u[e, i] - modelo_rutas.u[e, j] + total_localidades * modelo_rutas.decision[e, i, j] <= total_localidades - 1)
 )
 
-# Resolver el modelo utilizando GLPK
 solver = SolverFactory('glpk')
 solver.solve(modelo_rutas)
 modelo_rutas.display()
 
-# Imprimir resultados en la terminal
 def imprimir_resultados(modelo_rutas):
     print("\n=== Resultados de las Rutas de los Equipos ===")
     distancia_total_modelo = 0
@@ -92,7 +82,6 @@ def imprimir_resultados(modelo_rutas):
         print(f"Distancia total recorrida por el equipo {e}: {distancia_equipo}")
     print(f"\nDistancia total recorrida por todos los equipos: {distancia_total_modelo}")
 
-# Visualización de rutas (sin cambios)
 def visualizar_rutas(modelo_rutas):
     G = nx.DiGraph()
     localidades = [i for i in modelo_rutas.localidades]
@@ -112,6 +101,5 @@ def visualizar_rutas(modelo_rutas):
     plt.title("Rutas óptimas de los equipos de trabajo")
     plt.show()
 
-# Ejecutar la impresión y visualización
 imprimir_resultados(modelo_rutas)
 visualizar_rutas(modelo_rutas)

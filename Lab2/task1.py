@@ -50,12 +50,14 @@ def enviado_equals_to_oferta(model, p):
 def recibido_equals_to_demanda(model, c):
     return sum(model.x[p, c] for p in model.productores) == demanda[c]
 
-#TODO: Verificar que esta restriccion sea necesaria o no, ya que la oferta > demanda 
 model.enviado_equals_to_oferta = Constraint(model.productores, rule=enviado_equals_to_oferta)
 model.recibido_equals_to_demanda = Constraint(model.consumidores, rule=recibido_equals_to_demanda)
 
-solver = SolverFactory('glpk')
-results = solver.solve(model)
+model.dual = Suffix(direction=Suffix.IMPORT)
+
+solver = SolverFactory('glpk')  
+results = solver.solve(model, tee=True)
+
 
 print("Costo mínimo:", value(model.obj))
 for p in model.productores:
@@ -63,4 +65,9 @@ for p in model.productores:
         if model.x[p, c].value > 0:
             print(f"Transportar {model.x[p, c].value} toneladas de {p} a {c} con costo {costos[p][c]}")
             
-            
+# Obtener los valores duales (precios sombra)
+print("\nValores duales (precios sombra):")
+for c in model.consumidores:
+    print(f"Precio sombra de la demanda en {c}: {model.dual[model.recibido_equals_to_demanda[c]]}")
+for p in model.productores:
+    print(f"Precio sombra de la oferta en {p}: {model.dual[model.enviado_equals_to_oferta[p]]}")
