@@ -10,8 +10,6 @@ import pandas as pd
 
 model = ConcreteModel()
 
-#carga de datos
-
 installation_costs = pd.read_csv('data/installation_costs.csv')
 communication_costs = pd.read_csv('data/communication_costs.csv')
 energy_consumption = pd.read_csv('data/energy_consumption.csv')
@@ -23,9 +21,13 @@ energy_consumption = dict(zip(energy_consumption['SensorType'], energy_consumpti
 locations = set(['L1', 'L11', 'L4', 'L5', 'L7', 'L2', 'L10', 'L12', 'L3', 'L9', 'L6', 'L8'])
 sensors = set(['S1','S2','S3'])
 
-communication_costs = communication_costs.groupby('Location').apply(
-    lambda x: dict(zip(x['SensorType'], x['CommunicationCost']))
-).to_dict()
+communication_costs = (
+    communication_costs.groupby('Location')
+    .apply(lambda x: dict(zip(x['SensorType'], x['CommunicationCost'])))
+    .reset_index(name='Costs')  
+)
+
+communication_costs = communication_costs.set_index('Location')['Costs'].to_dict()
 
 sensor_coverage = sensor_coverage.set_index('Location').T.to_dict()
 
@@ -40,7 +42,7 @@ Adj = {
     'L8': {'L8', 'L7', 'L6', 'L3', 'L11', 'L9', 'L12'},
     'L9': {'L9', 'L10', 'L11', 'L8', 'L12'},
     'L10': {'L10', 'L5', 'L11', 'L9'},
-    'L11': {'L11', 'L5', 'L4', 'L6', 'L8', 'L9', '10'},
+    'L11': {'L11', 'L5', 'L4', 'L6', 'L8', 'L9', 'L10'},
     'L12': {'L12', 'L7', 'L8', 'L9'}
 }
 
@@ -78,35 +80,34 @@ model.sensor_coverage = Param(model.L, model.S, initialize=get_sensor_cov)
 
 # Variables de decisión
 model.x = Var(model.L, model.S, within=Binary)
-model.y = Var(model.L, within=Binary)
 
-# Función objetivo
 def objective_rule(model):
-    return sum(model.installation_costs[l] * model.y[l] for l in model.L) + \
-           sum((model.energy_consumption[s] + model.communication_costs[l, s]) * model.x[l, s] 
+    return sum((model.installation_costs[l] + model.energy_consumption[s] + model.communication_costs[l, s]) * model.x[l, s] 
                for l in model.L for s in model.S)
 model.Objective = Objective(rule=objective_rule, sense=minimize)
 
-# Restricciones
-def coverage_constraint(model, l, s):
-    return model.x[l, s] <= model.sensor_coverage[l, s]
-model.Coverage_Constraint = Constraint(model.L, model.S, rule=coverage_constraint)
+# Restricción: la necesidad de un sensor específico en cada localidad debe ser satisfecha
+def sensor_need_rule(model, l, s):
+    if sensor_coverage[l][s] == 1:  
+        return sum(model.x[k, s] for k in Adj[l].union({l})) >= 1
+    else:
+        return Constraint.Skip  
 
-def locality_coverage_rule(model, l):
-    return sum(model.x[k, s] for k in Adj[l] for s in model.S if k in model.L) >= 1
-model.Locality_Coverage_Constraint = Constraint(model.L, rule=locality_coverage_rule)
-
-def xy_link_rule(model, l):
-    return model.y[l] >= sum(model.x[l, s] for s in model.S)
-model.XY_Link_Constraint = Constraint(model.L, rule=xy_link_rule)
+model.Sensor_Need_Constraint = Constraint(model.L, model.S, rule=sensor_need_rule)
 
 solver = SolverFactory('glpk')
 solver.solve(model)
-# Resultados
-for l in model.L:
-    print(f'Location {l}: Sensor Installed? {int(model.y[l].value)}')
-    for s in model.S:
-        if model.x[l, s].value == 1:
-            print(f'   Sensor Type {s} Installed')
-            
+    
 model.display()
+
+def print_results(model):
+    print("Resultados de la Optimización de la Colocación de Sensores:")
+    for l in model.L:
+        any_sensor_installed = False
+        for s in model.S:
+            if model.x[l, s].value == 1:
+                print(f"Localización {l}:")
+                print(f"   Sensor {s} instalado.")
+    print(f"\nCosto total de la solución: {model.Objective.expr()}")
+
+print_results(model)
